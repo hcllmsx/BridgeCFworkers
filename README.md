@@ -34,7 +34,7 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
      - `MAX_STORAGE_SIZE`: 最大存储容量，单位GB（默认：8）
      - `FILE_EXPIRY_DAYS`: 文件过期天数（默认：30）
      - `R2_PUBLIC_URL`: 您的 R2 公共访问 URL（必须，配置后可直接从 R2 下载）
-     - `ADMIN_TOKEN`: 管理员令牌（自定义一个安全的值，用于访问管理功能）
+     - `ADMIN_TOKEN`: 管理员令牌（自定义一个安全的值，用于访问管理功能。默认值：hcllmsx-BridgeCF）
    - **计划任务(Cron Triggers)**: 添加 `0 0 * * *`（每天运行一次）
 6. **保存并部署**
 
@@ -55,14 +55,14 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
 #### 通过 URL 删除缓存
 
 1. 在首页点击 **通过URL删除缓存** 链接
-2. 输入您设置的 `ADMIN_TOKEN`
+2. 输入您设置的 `ADMIN_TOKEN`（若未设置，使用默认值：hcllmsx-BridgeCF）
 3. 在管理页面中，输入要删除的 GitHub 文件链接
 4. 点击 **删除缓存** 按钮
 
 #### 清理所有缓存
 
 1. 在首页点击 **清理所有缓存** 链接
-2. 输入您设置的 `ADMIN_TOKEN`
+2. 输入您设置的 `ADMIN_TOKEN`（若未设置，使用默认值：hcllmsx-BridgeCF）
 3. 系统会删除所有缓存文件和下载记录
 
 ## 技术实现

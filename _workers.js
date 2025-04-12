@@ -1684,7 +1684,8 @@ async function handleStorageInfo(request, env, ctx) {
  */
 async function handleDeleteAllCache(request, token, env, ctx) {
   // 验证令牌
-  if (!token || token !== env.ADMIN_TOKEN) {
+  const adminToken = env.ADMIN_TOKEN || 'hcllmsx-BridgeCF'; // 添加默认值
+  if (!token || token !== adminToken) {
     return new Response(JSON.stringify({
       success: false,
       error: "未授权访问"
@@ -1740,7 +1741,8 @@ async function handleDeleteAllCache(request, token, env, ctx) {
  */
 async function handleDeleteCacheByURLPage(request, token, env, ctx) {
   // 验证令牌
-  if (!token || token !== env.ADMIN_TOKEN) {
+  const adminToken = env.ADMIN_TOKEN || 'hcllmsx-BridgeCF'; // 添加默认值
+  if (!token || token !== adminToken) {
     return new Response(JSON.stringify({
       success: false,
       error: "未授权访问"
@@ -1772,7 +1774,8 @@ async function handleDeleteCacheByURLPage(request, token, env, ctx) {
  */
 async function handleDeleteCacheByURL(request, token, env, ctx) {
   // 验证令牌
-  if (!token || token !== env.ADMIN_TOKEN) {
+  const adminToken = env.ADMIN_TOKEN || 'hcllmsx-BridgeCF'; // 添加默认值
+  if (!token || token !== adminToken) {
     return new Response(JSON.stringify({
       success: false,
       error: "未授权访问"
