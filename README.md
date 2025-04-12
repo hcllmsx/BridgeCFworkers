@@ -4,6 +4,8 @@
 
 BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务。它通过缓存机制，解决了 GitHub 在某些地区下载速度慢的问题，提供更快速、更稳定的文件下载体验。
 
+![BridgeCF](BridgeCF-preview.png)
+
 ## 功能特点
 
 - **GitHub 文件加速下载**：支持 GitHub 仓库中的文件、Release 附件等资源的加速下载
