@@ -1,5 +1,3 @@
-import { getAssetFromKV } from '@cloudflare/kv-asset-handler';
-
 // 静态资源内容
 const STATIC_RESOURCES = {
   'index.html': `<!DOCTYPE html>
