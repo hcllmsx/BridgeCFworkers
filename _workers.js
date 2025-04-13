@@ -318,7 +318,7 @@ const STATIC_RESOURCES = {
 <body>
   <div class="container">
     <header>
-      <h1>BridgeCF</h1>
+      <h1><a href="/" style="color: inherit; text-decoration: none;">BridgeCF</a></h1>
       <p>GitHub 文件加速下载服务</p>
     </header>
 
