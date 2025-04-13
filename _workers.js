@@ -1005,17 +1005,26 @@ async function handleRequest(request, env, ctx) {
         return new Response("❌ 文件不存在！", { status: 404 });
       }
       
-      const isLargeFile = file.size > 5 * 1024 * 1024; // 大于5MB的文件
+      const isLargeFile = file.size > 5 * 1024 * 1024;
       
       if (env.R2_PUBLIC_URL && isLargeFile) {
         // 构建带有内容处置的URL
         const disposition = `attachment; filename="${encodeURIComponent(filename)}"`;
-        const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
-          ? `${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}` 
-          : `https://${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}`;
         
-        // 使用307临时重定向，保留原始请求的方法和正文
-        return Response.redirect(r2PublicUrl, 307);
+        // 优化R2公共URL构建
+        let r2PublicUrl;
+        if (env.R2_PUBLIC_URL.startsWith('http')) {
+          r2PublicUrl = `${env.R2_PUBLIC_URL}/${fileId}`;
+        } else {
+          r2PublicUrl = `https://${env.R2_PUBLIC_URL}/${fileId}`;
+        }
+        
+        // 添加控制缓存的参数和防止浏览器缓存的时间戳
+        const timestamp = Date.now();
+        r2PublicUrl = `${r2PublicUrl}?response-content-disposition=${encodeURIComponent(disposition)}&t=${timestamp}`;
+        
+        // 使用302直接重定向，提高速度
+        return Response.redirect(r2PublicUrl, 302);
       }
       
       // 小文件或未配置R2公共URL时，通过Worker提供文件
