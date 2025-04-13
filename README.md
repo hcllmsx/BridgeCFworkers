@@ -35,7 +35,7 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
    - **环境变量**:
      - `MAX_STORAGE_SIZE`: 最大存储容量，单位GB（默认：8）
      - `FILE_EXPIRY_DAYS`: 文件过期天数（默认：30）
-     - `R2_PUBLIC_URL`: 您的 R2 公共访问 URL（必须，配置后可直接从 R2 下载）
+     - `R2_PUBLIC_URL`: 您的 R2 存储桶自定义域名，**只需填写域名**（例如：`files.example.com`），**不要包含 `https://` 前缀或路径，结尾也不要包含斜杠**
      - `ADMIN_TOKEN`: 管理员令牌（自定义一个安全的值，用于访问管理功能。默认值：hcllmsx-BridgeCF）
    - **计划任务(Cron Triggers)**: 添加 `0 0 * * *`（每天运行一次）
 6. **保存并部署**

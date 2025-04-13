@@ -1089,7 +1089,11 @@ async function handleDownload(request, env, ctx) {
         
         // 确保使用R2公共URL（如果配置了）
         if (env.R2_PUBLIC_URL) {
-          const r2PublicUrl = `${env.R2_PUBLIC_URL}/${fileId}`;
+          // 修正URL格式，确保包含https://前缀
+          const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
+            ? `${env.R2_PUBLIC_URL}/${fileId}` 
+            : `https://${env.R2_PUBLIC_URL}/${fileId}`;
+          
           return new Response(JSON.stringify({
             success: true,
             downloadUrl: r2PublicUrl,
@@ -1168,7 +1172,11 @@ async function handleDownload(request, env, ctx) {
     
     // 优先使用R2公共URL
     if (env.R2_PUBLIC_URL) {
-      const r2PublicUrl = `${env.R2_PUBLIC_URL}/${fileId}`;
+      // 修正URL格式，确保包含https://前缀
+      const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
+        ? `${env.R2_PUBLIC_URL}/${fileId}` 
+        : `https://${env.R2_PUBLIC_URL}/${fileId}`;
+        
       return new Response(JSON.stringify({
         success: true,
         downloadUrl: r2PublicUrl,
@@ -1226,7 +1234,10 @@ async function handleFileDownload(request, fileId, env, ctx) {
       // 构建带有内容处置的URL
       // 添加必要的查询参数，以确保文件作为附件下载，且带有正确的文件名
       const disposition = `attachment; filename="${encodeURIComponent(filename)}"`;
-      const r2PublicUrl = `${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}`;
+      // 修正URL格式，确保包含https://前缀
+      const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
+        ? `${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}` 
+        : `https://${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}`;
       
       // 使用307临时重定向，保留原始请求的方法和正文
       return Response.redirect(r2PublicUrl, 307);
