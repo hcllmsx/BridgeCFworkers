@@ -978,7 +978,59 @@ async function handleRequest(request, env, ctx) {
   
   // 处理文件下载
   if (url.pathname.startsWith("/download/")) {
-    return handleFileDownload(request, url.pathname.replace("/download/", ""), env, ctx);
+    const fileId = url.pathname.replace("/download/", "");
+    
+    try {
+      // 从数据库获取文件信息
+      const fileRecord = await env.DB.prepare(`
+        SELECT filename FROM downloads WHERE file_id = ? LIMIT 1
+      `).bind(fileId).first();
+      
+      const filename = fileRecord ? fileRecord.filename : 'download';
+      
+      // 检查R2中是否存在该文件
+      const exists = await env.R2_BUCKET.head(fileId);
+      if (!exists) {
+        return new Response("❌ 文件不存在！", { status: 404 });
+      }
+      
+      // 更新下载计数
+      await updateDownloadStats(fileId, null, env);
+      
+      // 如果配置了R2公共URL且文件大于5MB，使用R2直接下载以获得更好的性能
+      // 对于大文件，R2直接下载通常会更快
+      const file = await env.R2_BUCKET.get(fileId, { onlyIf: { etagDoesNotMatch: "*" } });
+      
+      if (!file) {
+        return new Response("❌ 文件不存在！", { status: 404 });
+      }
+      
+      const isLargeFile = file.size > 5 * 1024 * 1024; // 大于5MB的文件
+      
+      if (env.R2_PUBLIC_URL && isLargeFile) {
+        // 构建带有内容处置的URL
+        const disposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+        const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
+          ? `${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}` 
+          : `https://${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}`;
+        
+        // 使用307临时重定向，保留原始请求的方法和正文
+        return Response.redirect(r2PublicUrl, 307);
+      }
+      
+      // 小文件或未配置R2公共URL时，通过Worker提供文件
+      return new Response(file.body, {
+        headers: {
+          "Content-Type": file.httpMetadata.contentType || "application/octet-stream",
+          "Content-Disposition": `attachment; filename="${filename}"`,
+          "Cache-Control": "public, max-age=31536000",
+          "Content-Length": file.size,
+          "Accept-Ranges": "bytes"
+        }
+      });
+    } catch (error) {
+      return new Response(`Error: ${error.message}`, { status: 500 });
+    }
   }
 
   // 处理缓存删除请求 - 删除所有缓存
@@ -1087,22 +1139,15 @@ async function handleDownload(request, env, ctx) {
         // 更新下载计数
         await updateDownloadStats(fileId, url, env);
         
-        // 确保使用R2公共URL（如果配置了）
-        if (env.R2_PUBLIC_URL) {
-          // 修正URL格式，确保包含https://前缀
-          const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
-            ? `${env.R2_PUBLIC_URL}/${fileId}` 
-            : `https://${env.R2_PUBLIC_URL}/${fileId}`;
-          
-          return new Response(JSON.stringify({
-            success: true,
-            downloadUrl: r2PublicUrl,
-            cached: true,
-            directDownload: true
-          }), {
-            headers: { "Content-Type": "application/json" }
-          });
-        }
+        // 如果是缓存的文件，统一使用Worker的下载路径，避免URL差异
+        return new Response(JSON.stringify({
+          success: true,
+          downloadUrl: `/download/${fileId}`,
+          cached: true,
+          directDownload: false  // 始终设为false以使用Worker的统一路由
+        }), {
+          headers: { "Content-Type": "application/json" }
+        });
       }
     }
   
@@ -1170,24 +1215,7 @@ async function handleDownload(request, env, ctx) {
     // 记录下载信息到D1
     await recordDownload(fileId, url, filename, contentLength ? parseInt(contentLength) : 0, env);
     
-    // 优先使用R2公共URL
-    if (env.R2_PUBLIC_URL) {
-      // 修正URL格式，确保包含https://前缀
-      const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
-        ? `${env.R2_PUBLIC_URL}/${fileId}` 
-        : `https://${env.R2_PUBLIC_URL}/${fileId}`;
-        
-      return new Response(JSON.stringify({
-        success: true,
-        downloadUrl: r2PublicUrl,
-        cached: false,
-        directDownload: true
-      }), {
-        headers: { "Content-Type": "application/json" }
-      });
-    }
-    
-    // 如果没有配置R2公共URL，使用Worker代理
+    // 始终使用Worker的下载路径，确保一致的体验和统计
     return new Response(JSON.stringify({
       success: true,
       downloadUrl: `/download/${fileId}`,
@@ -1201,70 +1229,6 @@ async function handleDownload(request, env, ctx) {
       status: 500,
       headers: { "Content-Type": "application/json" }
     });
-  }
-}
-
-/**
- * 处理文件下载请求
- * @param {Request} request
- * @param {string} fileId
- * @param {Object} env 环境变量和绑定
- * @param {Object} ctx 执行上下文
- */
-async function handleFileDownload(request, fileId, env, ctx) {
-  try {
-    // 从数据库获取文件信息
-    const fileRecord = await env.DB.prepare(`
-      SELECT filename FROM downloads WHERE file_id = ? LIMIT 1
-    `).bind(fileId).first();
-    
-    const filename = fileRecord ? fileRecord.filename : 'download';
-    
-    // 如果配置了R2公共URL，构建带有正确查询参数的URL
-    if (env.R2_PUBLIC_URL) {
-      // 检查R2中是否存在该文件
-      const exists = await env.R2_BUCKET.head(fileId);
-      if (!exists) {
-        return new Response("❌ 文件不存在！", { status: 404 });
-      }
-      
-      // 更新下载计数
-      await updateDownloadStats(fileId, null, env);
-      
-      // 构建带有内容处置的URL
-      // 添加必要的查询参数，以确保文件作为附件下载，且带有正确的文件名
-      const disposition = `attachment; filename="${encodeURIComponent(filename)}"`;
-      // 修正URL格式，确保包含https://前缀
-      const r2PublicUrl = env.R2_PUBLIC_URL.startsWith('http') 
-        ? `${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}` 
-        : `https://${env.R2_PUBLIC_URL}/${fileId}?response-content-disposition=${encodeURIComponent(disposition)}`;
-      
-      // 使用307临时重定向，保留原始请求的方法和正文
-      return Response.redirect(r2PublicUrl, 307);
-    }
-    
-    // 如果没有配置R2公共URL，通过Worker提供文件
-    const file = await env.R2_BUCKET.get(fileId);
-    
-    if (!file) {
-      return new Response("❌ 文件不存在！", { status: 404 });
-    }
-    
-    // 更新下载计数
-    await updateDownloadStats(fileId, null, env);
-    
-    // 返回文件（流式传输）
-    return new Response(file.body, {
-      headers: {
-        "Content-Type": file.httpMetadata.contentType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "public, max-age=31536000",
-        "Content-Length": file.size,
-        "Accept-Ranges": "bytes"
-      }
-    });
-  } catch (error) {
-    return new Response(`Error: ${error.message}`, { status: 500 });
   }
 }
 

@@ -19,6 +19,7 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
 ### 前提条件
 
 - Cloudflare 账号
+- 一个域名（且最好是托管在Cloudflare中）
 - 已开通 Workers 服务（免费计划即可）
 - 已开通 R2 存储服务（用于缓存文件）
 - 已开通 D1 数据库服务（用于存储下载记录）
@@ -26,7 +27,25 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
 ### 部署步骤
 
 1. 登录 Cloudflare Dashboard，创建 **R2存储桶** 和 **D1数据库** 备用
-2. **为刚刚创建的R2存储桶设定一个自定义域**
+2. 为刚刚创建的R2存储桶**设定一个自定义域**，修改一下R2的CORS策略，CORS配置示例：
+   ```json
+   [
+     {
+       "AllowedOrigins": [
+         "https://你的workers域名.com",
+         "https://你的workers名称.workers.dev"
+       ],
+       "AllowedMethods": [
+         "GET"
+       ],
+       "AllowedHeaders": [
+         "*"
+       ],
+       "MaxAgeSeconds": 86400
+     }
+   ]
+   ```
+   注意：请将`https://你的workers域名.com`和`https://你的workers名称.workers.dev`替换为你实际使用的Workers域名。
 3. 进入 Workers & Pages，**创建一个新的 Worker**
 4. **将 `_workers.js` 文件的全部内容复制粘贴到 Workers 编辑器中**
 5. **在"设置"标签页中配置以下绑定**:
@@ -35,8 +54,8 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
    - **环境变量**:
      - `MAX_STORAGE_SIZE`: 最大存储容量，单位GB（默认：8）
      - `FILE_EXPIRY_DAYS`: 文件过期天数（默认：30）
-     - `R2_PUBLIC_URL`: 您的 R2 存储桶自定义域名，**只需填写域名**（例如：`files.example.com`）
-     - `ADMIN_TOKEN`: 管理员令牌（自定义一个安全的值，用于访问管理功能。默认：hcllmsx-BridgeCF）
+     - `R2_PUBLIC_URL`: 您的 R2 存储桶自定义域名，**只需填写域名**（例如：`files.example.com`）。**强烈建议配置此项**，对于大文件下载（>5MB），将直接使用 R2 存储桶提供下载，大幅提高速度。小文件则始终通过 Worker 代理以获得最佳体验。
+     - `ADMIN_TOKEN`: 管理员令牌（自定义一个安全的值，用于访问管理功能。默认值：hcllmsx-BridgeCF）
    - **计划任务(Cron Triggers)**: 添加 `0 0 * * *`（每天运行一次）
 6. **保存并部署**
 
@@ -74,6 +93,7 @@ BridgeCF 是一个基于 Cloudflare Workers 的 GitHub 文件加速下载服务�
 - **存储**：Cloudflare R2 用于文件存储
 - **数据库**：Cloudflare D1 用于记录下载信息
 - **定时任务**：使用 Cron Triggers 定期清理过期文件
+- **智能下载**：小文件通过 Worker 代理，大文件通过 R2 直接下载，兼顾速度和稳定性
 
 ## 感谢 [**Cloudflare**](https://www.cloudflare-cn.com/) 赛博活佛！
 
