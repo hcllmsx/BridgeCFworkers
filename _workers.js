@@ -983,7 +983,7 @@ async function handleRequest(request, env, ctx) {
     try {
       // 从数据库获取文件信息
       const fileRecord = await env.DB.prepare(`
-        SELECT filename FROM downloads WHERE file_id = ? LIMIT 1
+        SELECT filename, file_size FROM downloads WHERE file_id = ? LIMIT 1
       `).bind(fileId).first();
       
       const filename = fileRecord ? fileRecord.filename : 'download';
@@ -997,17 +997,42 @@ async function handleRequest(request, env, ctx) {
       // 更新下载计数
       await updateDownloadStats(fileId, null, env);
       
-      // 如果配置了R2公共URL且文件大于5MB，使用R2直接下载以获得更好的性能
-      // 对于大文件，R2直接下载通常会更快
-      const file = await env.R2_BUCKET.get(fileId, { onlyIf: { etagDoesNotMatch: "*" } });
+      // 获取完整的文件对象
+      const file = await env.R2_BUCKET.get(fileId);
       
       if (!file) {
         return new Response("❌ 文件不存在！", { status: 404 });
       }
       
-      const isLargeFile = file.size > 5 * 1024 * 1024;
+      // 检查文件大小
+      if (file.size === 0) {
+        // 文件大小为0，可能是之前的下载出错
+        return new Response("❌ 文件损坏，请重新下载！", { status: 500 });
+      }
       
-      if (env.R2_PUBLIC_URL && isLargeFile) {
+      // 降低大文件的判断阈值，让更多文件走R2直接下载
+      const isLargeFile = file.size > 5 * 1024 * 1024; // 大于5MB的文件
+      
+      // 检查是否是特殊文件格式，这些格式可能需要特殊处理
+      const fileExtension = filename.split('.').pop().toLowerCase();
+      const specialFormats = ['rar', 'iso']; // 可能需要特殊处理的格式
+      const isSpecialFormat = specialFormats.includes(fileExtension);
+      
+      // 对特定格式文件统一使用Worker代理下载，避免格式兼容性问题
+      if (isSpecialFormat) {
+        // 特殊处理某些格式文件，直接通过Worker流式传输
+        return new Response(file.body, {
+          headers: {
+            "Content-Type": file.httpMetadata.contentType || "application/octet-stream",
+            "Content-Disposition": `attachment; filename="${filename}"`,
+            "Cache-Control": "no-cache, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0",
+            "Content-Length": file.size.toString()
+          }
+        });
+      } else if (env.R2_PUBLIC_URL && isLargeFile) {
+        // 对于其他大文件，使用R2直接下载
         // 构建带有内容处置的URL
         const disposition = `attachment; filename="${encodeURIComponent(filename)}"`;
         
@@ -1027,13 +1052,13 @@ async function handleRequest(request, env, ctx) {
         return Response.redirect(r2PublicUrl, 302);
       }
       
-      // 小文件或未配置R2公共URL时，通过Worker提供文件
+      // 小文件通过Worker提供
       return new Response(file.body, {
         headers: {
           "Content-Type": file.httpMetadata.contentType || "application/octet-stream",
           "Content-Disposition": `attachment; filename="${filename}"`,
           "Cache-Control": "public, max-age=31536000",
-          "Content-Length": file.size,
+          "Content-Length": file.size.toString(),
           "Accept-Ranges": "bytes"
         }
       });
