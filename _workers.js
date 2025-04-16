@@ -133,6 +133,11 @@ const STATIC_RESOURCES = {
       background-color: #2188ff;
     }
 
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
     .result-container {
       background-color: var(--bg-color);
       border: 1px solid var(--border-color);
@@ -158,6 +163,18 @@ const STATIC_RESOURCES = {
       border-radius: 50%;
       animation: spin 1s linear infinite;
       margin-bottom: 1rem;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+      vertical-align: middle;
     }
 
     @keyframes spin {
@@ -459,7 +476,7 @@ const STATIC_RESOURCES = {
               const filenameFromUrl = extractFilenameFromUrl(githubUrl);
               filename.textContent = filenameFromUrl;
               
-              // 设置下载链接
+              // 设置下载链接及添加点击效果
               downloadLink.href = data.downloadUrl;
               
               // 如果是直接下载，添加target="_blank"属性
@@ -469,6 +486,25 @@ const STATIC_RESOURCES = {
               } else {
                 downloadLink.removeAttribute('target');
               }
+              
+              // 添加下载按钮点击效果
+              downloadLink.addEventListener('click', function(e) {
+                if (!this.dataset.clicked) {  // 防止重复点击
+                  const originalText = this.textContent;
+                  this.innerHTML = '<span class="loading-spinner"></span> 下载中...';
+                  this.style.pointerEvents = 'none';  // 禁止再次点击
+                  
+                  // 设置标记，表示已经点击过
+                  this.dataset.clicked = 'true';
+                  
+                  // 1秒后恢复按钮状态，给用户足够的视觉反馈
+                  setTimeout(() => {
+                    this.innerHTML = originalText;
+                    this.style.pointerEvents = '';  // 恢复点击
+                    // 下载已经开始，不需要删除标记
+                  }, 1000);
+                }
+              });
               
               // 显示缓存状态
               if (data.cached) {
