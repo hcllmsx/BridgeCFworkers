@@ -968,7 +968,7 @@ export default {
     try {
       return await handleRequest(request, env, ctx);
     } catch (e) {
-      // 返回简单的错误提示而不是内联HTML
+      // 处理未捕获的异常
       return new Response('服务器错误：' + e.message, {
         status: 500,
         headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
